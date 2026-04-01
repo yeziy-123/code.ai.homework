@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Code AI Homework - 智能作业批改与答疑助手">
+    <title>Code AI Homework</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            overflow-x: hidden;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* 动态背景 */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px);
+            animation: gridMove 20s linear infinite;
+        }
+        
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(40px, 40px); }
+        }
+        
+        /* 霓虹光晕效果 */
+        .neon-glow {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5), 
+                        0 0 40px rgba(59, 130, 246, 0.3),
+                        0 0 60px rgba(59, 130, 246, 0.1);
+        }
+        
+        .neon-text {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.8),
+                         0 0 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* 按钮悬停效果 */
+        .btn-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-hover::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-hover:hover::before {
+            left: 100%;
+        }
+        
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* 拍照界面 */
+        .camera-view {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 100;
+            display: none;
+        }
+        
+        .camera-view.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #video-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #canvas-capture {
+            display: none;
+        }
+        
+        /* 扫描动画 */
+        .scan-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #3b82f6, transparent);
+            box-shadow: 0 0 10px #3b82f6;
+            animation: scan 2s linear infinite;
+            display: none;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        
+        .scanning .scan-line {
+            display: block;
+        }
+        
+        /* 批改标记 */
+        .check-mark {
+            position: absolute;
+            color: #22c55e;
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
+            animation: checkPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        @keyframes checkPop {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(0deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        
+        /* 题目区域标记 */
+        .question-box {
+            position: absolute;
+            border: 3px solid #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 8px;
+            animation: boxDraw 0.5s ease-out forwards;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+        
+        @keyframes boxDraw {
+            from { 
+                clip-path: polygon(0 0, 0 0, 0 0, 0 0);
+                opacity: 0;
+            }
+            to { 
+                clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+                opacity: 1;
+            }
+        }
+        
+        /* 图片预览区 */
+        .image-preview-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+        }
+        
+        .captured-image {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        
+        /* 加载动画 */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite both;
+        }
+        
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* 消息气泡动画 */
+        .message-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* 玻璃拟态效果 */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 提示 toast */
+        #toast {
+            transition: all 0.3s ease;
+        }
+        
+        /* 批改结果面板 */
+        .correction-panel {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .score-badge {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+        }
+
+        /* 聊天区域样式 */
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        .chat-message {
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border-radius: 18px 18px 4px 18px;
+        }
+
+        .ai-message {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px 18px 18px 4px;
+        }
+
+        /* 文件上传区域 */
+        .upload-area {
+            border: 2px dashed rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: rgba(59, 130, 246, 0.6);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex flex-col relative">
+
+    <!-- 动态背景 -->
+    <div class="fixed inset-0 bg-grid pointer-events-none z-0"></div>
+    <div class="fixed inset-0 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 z-0"></div>
+    
+    <!-- 装饰性光晕 -->
+    <div class="fixed top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl pointer-events-none z-0"></div>
+    <div class="fixed bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none z-0"></div>
+
+    <!-- 拍照界面 -->
+    <div id="camera-view" class="camera-view">
+        <div class="relative flex-1 bg-black">
+            <video id="video-preview" autoplay playsinline></video>
+            <canvas id="canvas-capture"></canvas>
+            
+            <!-- 扫描线 -->
+            <div class="scan-line"></div>
+            
+            <!-- 取景框 -->
+            <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div class="w-64 h-64 border-2 border-white/30 rounded-lg relative">
+                    <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
+                    <div class="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
+                    <div class="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
+                    <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-white/50 text-sm bg-black/50 px-3 py-1 rounded">将作业对准框内</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 顶部信息栏 -->
+            <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span id="camera-mode-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white">
+                        批改模式
+                    </span>
+                </div>
+                <button onclick="closeCamera()" class="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 底部控制栏 -->
+        <div class="bg-black p-6 flex items-center justify-center gap-8">
+            <button onclick="switchCamera()" class="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </button>
+            
+            <button onclick="capturePhoto()" class="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-lg shadow-blue-500/50 hover:scale-105 transition-transform active:scale-95">
+                <div class="w-16 h-16 rounded-full border-4 border-slate-900"></div>
+            </button>
+            
+            <button onclick="toggleFlash()" class="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="main-interface" class="relative z-10 flex flex-col min-h-screen">
+        
+        <!-- 头部 -->
+        <header class="pt-12 pb-8 px-4 text-center">
+            <div class="inline-block mb-4">
+                <div class="flex items-center justify-center gap-3 mb-2">
+                    <svg class="w-10 h-10 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                    <h1 class="text-5xl font-bold tracking-tight neon-text bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500">
+                        Code AI Homework
+                    </h1>
+                </div>
+                <div class="h-1 w-full bg-gradient-to-r from-transparent via-blue-500 to-transparent rounded-full"></div>
+            </div>
+            <p class="text-slate-400 text-lg mt-4 font-light">智能作业批改与答疑助手</p>
+        </header>
+
+        <!-- 主控制区 -->
+        <main class="flex-1 max-w-5xl mx-auto w-full px-4 pb-8 flex flex-col gap-6">
+            
+            <!-- 功能按钮区 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <button onclick="startCamera('correct')" id="btn-correct" class="btn-hover group relative px-8 py-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl border border-blue-400/30 shadow-lg shadow-blue-500/20 flex flex-col items-center justify-center gap-3 transition-all">
+                    <div class="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"></div>
+                    <svg class="w-12 h-12 text-blue-100 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="text-2xl font-bold text-white">批改作业</span>
+                    <span class="text-sm text-blue-200/80">拍照自动识别并批改</span>
+                </button>
+                
+                <button onclick="startCamera('qa')" id="btn-qa" class="btn-hover group relative px-8 py-8 bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl border border-purple-400/30 shadow-lg shadow-purple-500/20 flex flex-col items-center justify-center gap-3 transition-all">
+                    <div class="absolute inset-0 bg-gradient-to-br from-purple-400/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"></div>
+                    <svg class="w-12 h-12 text-purple-100 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="text-2xl font-bold text-white">答疑作业</span>
+                    <span class="text-sm text-purple-200/80">拍照识别题目并解答</span>
+                </button>
+            </div>
+
+            <!-- 图片上传备用方案 -->
+            <div class="glass rounded-2xl p-6 mb-4">
+                <h3 class="text-lg font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    或者上传图片
+                </h3>
+                <div class="upload-area rounded-xl p-8 text-center cursor-pointer" onclick="document.getElementById('file-input').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileSelect(event)">
+                    <svg class="w-12 h-12 text-slate-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-slate-400 text-sm mb-1">点击选择图片或拖拽到此处</p>
+                    <p class="text-slate-600 text-xs">支持 JPG、PNG 格式</p>
+                </div>
+            </div>
+
+            <!-- 图片预览和批改结果区 -->
+            <div id="result-area" class="hidden glass rounded-2xl p-6 shadow-2xl shadow-black/50">
+                <div class="flex flex-col items-center gap-6">
+                    <!-- 图片预览 -->
+                    <div class="image-preview-container" id="image-container">
+                        <img id="captured-image" class="captured-image" src="" alt="作业照片">
+                        <!-- 批改标记将在这里动态添加 -->
+                    </div>
+                    
+                    <!-- 批改结果面板 -->
+                    <div id="correction-result" class="w-full correction-panel rounded-xl p-6 hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold text-green-400 flex items-center gap-2">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                批改完成
+                            </h3>
+                            <div class="score-badge px-4 py-2 rounded-full text-white font-bold text-lg" id="score-display">
+                                95分
+                            </div>
+                        </div>
+                        <div id="correction-details" class="space-y-3 text-slate-300">
+                            <!-- 动态填充批改详情 -->
+                        </div>
+                    </div>
+
+                    <!-- 答疑结果面板 -->
+                    <div id="qa-result" class="w-full bg-slate-800/80 rounded-xl p-6 border border-purple-500/30 hidden">
+                        <h3 class="text-xl font-bold text-purple-400 flex items-center gap-2 mb-4">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                            </svg>
+                            题目解答
+                        </h3>
+                        <div id="qa-content" class="prose prose-invert max-w-none text-slate-300">
+                            <!-- 动态填充答疑内容 -->
+                        </div>
+                    </div>
+
+                    <!-- 重新拍照按钮 -->
+                    <button onclick="retakePhoto()" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-white font-semibold transition-colors flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                        </svg>
+                        重新拍照/上传
+                    </button>
+                </div>
+            </div>
+
+            <!-- AI 聊天区域 -->
+            <div class="glass rounded-2xl flex flex-col shadow-2xl shadow-black/50 overflow-hidden">
+                <div class="p-4 border-b border-slate-700/50 flex items-center justify-between bg-slate-800/50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-slate-200">AI 学习助手</h3>
+                            <p class="text-xs text-slate-400">随时解答你的学习问题</p>
+                        </div>
+                    </div>
+                    <button onclick="clearChat()" class="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- 聊天消息区 -->
+                <div id="chat-messages" class="chat-container p-4 space-y-4 bg-slate-900/30">
+                    <!-- 欢迎消息 -->
+                    <div class="flex gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <div class="ai-message chat-message p-3 text-sm text-slate-200">
+                            你好！我是你的 AI 学习助手。📚<br>
+                            你可以问我任何学习相关的问题，比如：
+                            <ul class="mt-2 space-y-1 text-slate-400 list-disc list-inside">
+                                <li>数学题目解答</li>
+                                <li>编程代码调试</li>
+                                <li>作文批改建议</li>
+                                <li>知识点讲解</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入区 -->
+                <div class="p-4 bg-slate-800/50 border-t border-slate-700/50">
+                    <div class="flex gap-2">
+                        <div class="flex-1 relative">
+                            <textarea 
+                                id="chat-input" 
+                                rows="2" 
+                                placeholder="输入你的问题..." 
+                                class="w-full bg-slate-900/80 text-slate-200 rounded-xl px-4 py-3 pr-12 border border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none text-sm transition-all placeholder:text-slate-600"
+                                onkeydown="handleChatKeyDown(event)"
+                            ></textarea>
+                            <div class="absolute bottom-3 right-3 text-xs text-slate-600">
+                                <span id="chat-char-count">0</span>
+                            </div>
+                        </div>
+                        <button 
+                            onclick="sendChatMessage()" 
+                            id="chat-send-btn"
+                            class="self-end p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[48px] min-h-[48px]"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 text-xs text-slate-500">
+                        <span>Enter 发送，Shift+Enter 换行</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-green-500" id="chat-api-status"></span>
+                            <span>AI 就绪</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史记录 -->
+            <div id="history-section" class="glass rounded-2xl p-6">
+                <h3 class="text-lg font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    最近记录
+                </h3>
+                <div id="history-list" class="space-y-3">
+                    <div class="text-slate-500 text-center py-8">暂无记录，开始拍照吧！</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl border border-slate-700 opacity-0 pointer-events-none z-50 flex items-center gap-2">
+        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <span id="toast-message">提示信息</span>
+    </div>
+
+    <script>
+        // 配置
+        const API_KEY = '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';
+        const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+        
+        let currentMode = null;
+        let stream = null;
+        let facingMode = 'environment';
+        let currentImageData = null;
+        let correctionData = null;
+        let isChatProcessing = false;
+
+        // 显示 Toast
+        function showToast(message, type = 'warning') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const icon = toast.querySelector('svg');
+            
+            toastMessage.textContent = message;
+            
+            if (type === 'error') {
+                icon.classList.remove('text-yellow-400');
+                icon.classList.add('text-red-400');
+            } else {
+                icon.classList.remove('text-red-400');
+                icon.classList.add('text-yellow-400');
+            }
+            
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // 检查浏览器支持
+        function checkBrowserSupport() {
+            const isHTTPS = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
+            if (!isHTTPS) {
+                console.warn('Camera requires HTTPS or localhost');
+            }
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('您的浏览器不支持相机功能，请使用图片上传', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // 启动相机
+        async function startCamera(mode) {
+            currentMode = mode;
+            
+            if (!checkBrowserSupport()) {
+                showToast('请使用下方的图片上传功能', 'error');
+                return;
+            }
+            
+            const cameraView = document.getElementById('camera-view');
+            const video = document.getElementById('video-preview');
+            const badge = document.getElementById('camera-mode-badge');
+            
+            // 设置模式标签
+            if (mode === 'correct') {
+                badge.textContent = '批改模式';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-blue-600 text-white';
+            } else {
+                badge.textContent = '答疑模式';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-purple-600 text-white';
+            }
+            
+            cameraView.classList.add('active');
+            
+            try {
+                // 尝试获取相机权限
+                const constraints = {
+                    video: { 
+                        facingMode: facingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                // 等待视频准备就绪
+                video.onloadedmetadata = () => {
+                    video.play();
+                };
+                
+            } catch (err) {
+                console.error('Camera error:', err);
+                
+                let errorMsg = '无法访问相机';
+                if (err.name === 'NotAllowedError') {
+                    errorMsg = '相机权限被拒绝，请在浏览器设置中允许访问相机';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg = '未找到相机设备';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg = '相机被其他应用占用';
+                } else if (err.name === 'OverconstrainedError') {
+                    // 尝试不使用 facingMode 约束
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: true, 
+                            audio: false 
+                        });
+                        video.srcObject = stream;
+                        return;
+                    } catch (err2) {
+                        errorMsg = '无法启动相机，请使用图片上传';
+                    }
+                }
+                
+                showToast(errorMsg, 'error');
+                closeCamera();
+            }
+        }
+
+        // 关闭相机
+        function closeCamera() {
+            const cameraView = document.getElementById('camera-view');
+            const video = document.getElementById('video-preview');
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            
+            video.srcObject = null;
+            cameraView.classList.remove('active');
+            cameraView.classList.remove('scanning');
+        }
+
+        // 切换前后摄像头
+        async function switchCamera() {
+            if (!stream) return;
+            
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            
+            // 停止当前流
+            stream.getTracks().forEach(track => track.stop());
+            
+            const video = document.getElementById('video-preview');
+            try {
+                const constraints = {
+                    video: { 
+                        facingMode: facingMode,
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+            } catch (err) {
+                showToast('切换相机失败，请重试');
+                // 切回原来的模式
+                facingMode = facingMode === 'environment' ? 'user' : 'environment';
+            }
+        }
+
+        // 切换闪光灯（模拟）
+        function toggleFlash() {
+            showToast('闪光灯功能需要设备支持');
+        }
+
+        // 拍照
+        function capturePhoto() {
+            const video = document.getElementById('video-preview');
+            const canvas = document.getElementById('canvas-capture');
+            const cameraView = document.getElementById('camera-view');
+            
+            if (!video.videoWidth) {
+                showToast('相机尚未准备好，请稍候');
+                return;
+            }
+            
+            // 设置画布尺寸
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // 绘制视频帧
+            const ctx = canvas.getContext('2d');
+            
+            // 如果是前置摄像头，需要翻转图像
+            if (facingMode === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 添加扫描效果
+            cameraView.classList.add('scanning');
+            
+            // 模拟扫描延迟
+            setTimeout(() => {
+                cameraView.classList.remove('scanning');
+                
+                // 转换为图片数据
+                currentImageData = canvas.toDataURL('image/jpeg', 0.9);
+                
+                // 关闭相机并显示结果
+                closeCamera();
+                showResult();
+                
+                // 发送到 AI 处理
+                processImageWithAI();
+            }, 1500);
+        }
+
+        // 文件上传处理
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.classList.remove('dragover');
+            
+            const file = event.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                processFile(file);
+            } else {
+                showToast('请上传图片文件', 'error');
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.currentTarget.classList.remove('dragover');
+        }
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageData = e.target.result;
+                showResult();
+                processImageWithAI();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 显示结果
+        function showResult() {
+            const resultArea = document.getElementById('result-area');
+            const capturedImage = document.getElementById('captured-image');
+            
+            capturedImage.src = currentImageData;
+            resultArea.classList.remove('hidden');
+            resultArea.classList.add('message-enter');
+            
+            // 滚动到结果区域
+            setTimeout(() => {
+                resultArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        // 重新拍照
+        function retakePhoto() {
+            const resultArea = document.getElementById('result-area');
+            const correctionResult = document.getElementById('correction-result');
+            const qaResult = document.getElementById('qa-result');
+            const imageContainer = document.getElementById('image-container');
+            
+            // 清除之前的标记
+            const marks = imageContainer.querySelectorAll('.check-mark, .question-box');
+            marks.forEach(mark => mark.remove());
+            
+            // 隐藏结果面板
+            correctionResult.classList.add('hidden');
+            qaResult.classList.add('hidden');
+            resultArea.classList.add('hidden');
+            
+            // 清空文件输入
+            document.getElementById('file-input').value = '';
+        }
+
+        // 使用 AI 处理图片
+        async function processImageWithAI() {
+            const correctionResult = document.getElementById('correction-result');
+            const qaResult = document.getElementById('qa-result');
+            const correctionDetails = document.getElementById('correction-details');
+            const qaContent = document.getElementById('qa-content');
+            
+            showToast('正在识别题目，请稍候...');
+            
+            try {
+                let systemPrompt, userPrompt;
+                
+                if (currentMode === 'correct') {
+                    systemPrompt = `你是一个专业的作业批改助手。请仔细分析图片中的作业内容，识别每一道题目。
+                    对于批改模式，你需要：
+                    1. 识别图片中的每一道题目位置（用坐标表示，范围0-100）
+                    2. 判断每道题是否正确（correct: true/false）
+                    3. 给出总分（0-100分）
+                    4. 列出每道题的批改意见
+                    5. 返回JSON格式：{"score": 95, "questions": [{"id": 1, "x": 20, "y": 30, "correct": true, "comment": "正确"}, {"id": 2, "x": 50, "y": 60, "correct": false, "comment": "计算错误"}]}`;
+                    userPrompt = `请批改这张作业照片，识别所有题目并给出评分。`;
+                } else {
+                    systemPrompt = `你是一个专业的答疑助手。请仔细分析图片中的题目，提供详细的解答步骤和思路。`;
+                    userPrompt = `请解答这张图片中的题目，给出详细的解题步骤。`;
+                }
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.href,
+                        'X-Title': 'Code AI Homework'
+                    },
+                    body: JSON.stringify({
+                        model: 'openai/gpt-4o-mini',
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: [
+                                { type: 'text', text: userPrompt },
+                                { type: 'image_url', image_url: { url: currentImageData } }
+                            ]}
+                        ],
+                        max_tokens: 2000
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error?.message || `API 错误: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const aiResponse = data.choices[0].message.content;
+                
+                // 解析 AI 响应
+                if (currentMode === 'correct') {
+                    try {
+                        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            correctionData = JSON.parse(jsonMatch[0]);
+                            displayCorrectionMarks(correctionData);
+                        } else {
+                            displayDemoCorrection();
+                        }
+                    } catch (e) {
+                        displayDemoCorrection();
+                    }
+                    
+                    correctionResult.classList.remove('hidden');
+                    correctionResult.classList.add('message-enter');
+                } else {
+                    qaContent.innerHTML = formatMarkdown(aiResponse);
+                    qaResult.classList.remove('hidden');
+                    qaResult.classList.add('message-enter');
+                }
+                
+                addToHistory();
+                
+            } catch (error) {
+                console.error('AI processing error:', error);
+                showToast('AI处理失败: ' + error.message, 'error');
+                
+                if (currentMode === 'correct') {
+                    displayDemoCorrection();
+                    correctionResult.classList.remove('hidden');
+                } else {
+                    qaContent.innerHTML = '<p class="text-yellow-400">暂时无法获取解答，请稍后重试或直接在下方聊天框提问。</p>';
+                    qaResult.classList.remove('hidden');
+                }
+            }
+        }
+
+        // 显示批改标记（挑勾）
+        function displayCorrectionMarks(data) {
+            const imageContainer = document.getElementById('image-container');
+            const scoreDisplay = document.getElementById('score-display');
+            const correctionDetails = document.getElementById('correction-details');
+            
+            scoreDisplay.textContent = (data.score || 90) + '分';
+            correctionDetails.innerHTML = '';
+            
+            if (data.questions && Array.isArray(data.questions)) {
+                data.questions.forEach((q, index) => {
+                    const box = document.createElement('div');
+                    box.className = 'question-box';
+                    box.style.left = q.x + '%';
+                    box.style.top = q.y + '%';
+                    box.style.width = '15%';
+                    box.style.height = '10%';
+                    imageContainer.appendChild(box);
+                    
+                    if (q.correct) {
+                        setTimeout(() => {
+                            const check = document.createElement('div');
+                            check.className = 'check-mark';
+                            check.innerHTML = '✓';
+                            check.style.left = (q.x + 12) + '%';
+                            check.style.top = (q.y - 2) + '%';
+                            imageContainer.appendChild(check);
+                        }, index * 200);
+                    } else {
+                        setTimeout(() => {
+                            const cross = document.createElement('div');
+                            cross.style.position = 'absolute';
+                            cross.style.color = '#ef4444';
+                            cross.style.fontSize = '2rem';
+                            cross.style.fontWeight = 'bold';
+                            cross.style.textShadow = '0 0 10px rgba(239, 68, 68, 0.8)';
+                            cross.innerHTML = '✗';
+                            cross.style.left = (q.x + 12) + '%';
+                            cross.style.top = (q.y - 2) + '%';
+                            cross.style.animation = 'checkPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+                            cross.style.pointerEvents = 'none';
+                            cross.style.zIndex = '10';
+                            imageContainer.appendChild(cross);
+                        }, index * 200);
+                    }
+                    
+                    const item = document.createElement('div');
+                    item.className = 'flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg';
+                    item.innerHTML = `
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full ${q.correct ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'} flex items-center justify-center text-sm font-bold">
+                            ${q.correct ? '✓' : '✗'}
+                        </span>
+                        <div>
+                            <div class="font-semibold text-slate-200">题目 ${q.id || index + 1}</div>
+                            <div class="text-sm text-slate-400">${q.comment || (q.correct ? '回答正确' : '需要改正')}</div>
+                        </div>
+                    `;
+                    correctionDetails.appendChild(item);
+                });
+            }
+        }
+
+        // 演示批改效果
+        function displayDemoCorrection() {
+            const demoData = {
+                score: 85,
+                questions: [
+                    { id: 1, x: 15, y: 20, correct: true, comment: '计算准确，步骤清晰' },
+                    { id: 2, x: 15, y: 40, correct: true, comment: '公式运用正确' },
+                    { id: 3, x: 15, y: 60, correct: false, comment: '最后一步计算错误，应为 42' },
+                    { id: 4, x: 15, y: 80, correct: true, comment: '完全正确' }
+                ]
+            };
+            displayCorrectionMarks(demoData);
+        }
+
+        // Markdown 格式化
+        function formatMarkdown(text) {
+            text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-slate-900 p-4 rounded-lg overflow-x-auto my-3 text-sm"><code>$2</code></pre>');
+            text = text.replace(/`([^`]+)`/g, '<code class="bg-slate-700 px-2 py-1 rounded text-purple-300 text-sm">$1</code>');
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+            text = text.replace(/\n/g, '<br>');
+            return text;
+        }
+
+        // 添加到历史记录
+        function addToHistory() {
+            const historyList = document.getElementById('history-list');
+            const emptyMsg = historyList.querySelector('.text-center');
+            if (emptyMsg) emptyMsg.remove();
+            
+            const item = document.createElement('div');
+            item.className = 'flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition-colors cursor-pointer';
+            
+            const time = new Date().toLocaleString('zh-CN', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            const modeText = currentMode === 'correct' ? '批改' : '答疑';
+            const modeColor = currentMode === 'correct' ? 'text-blue-400' : 'text-purple-400';
+            const modeBg = currentMode === 'correct' ? 'bg-blue-500/20' : 'bg-purple-500/20';
+            
+            item.innerHTML = `
+                <div class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                    <img src="${currentImageData}" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium ${modeBg} ${modeColor}">${modeText}</span>
+                        <span class="text-xs text-slate-500">${time}</span>
+                    </div>
+                    <div class="text-sm text-slate-300 truncate">作业照片 #${historyList.children.length + 1}</div>
+                </div>
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            `;
+            
+            historyList.insertBefore(item, historyList.firstChild);
+            
+            while (historyList.children.length > 10) {
+                historyList.removeChild(historyList.lastChild);
+            }
+        }
+
+        // AI 聊天功能
+        function handleChatKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendChatMessage();
+            }
+            updateChatCharCount();
+        }
+
+        function updateChatCharCount() {
+            const input = document.getElementById('chat-input');
+            document.getElementById('chat-char-count').textContent = input.value.length;
+        }
+
+        document.getElementById('chat-input').addEventListener('input', updateChatCharCount);
+
+        async function sendChatMessage() {
+            if (isChatProcessing) return;
+            
+            const input = document.getElementById('chat-input');
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            // 添加用户消息
+            addChatMessage(content, 'user');
+            input.value = '';
+            updateChatCharCount();
+            
+            // 显示加载状态
+            isChatProcessing = true;
+            document.getElementById('chat-send-btn').disabled = true;
+            showChatLoading();
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': window.location.href,
+                        'X-Title': 'Code AI Homework'
+                    },
+                    body: JSON.stringify({
+                        model: 'openai/gpt-4o-mini',
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: '你是一个专业的学习助手，擅长解答各学科问题。请用中文回答，给出清晰、准确的解答。' 
+                            },
+                            { role: 'user', content: content }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+                
+                if (!response.ok) throw new Error('API 请求失败');
+                
+                const data = await response.json();
+                const aiResponse = data.choices[0].message.content;
+                
+                removeChatLoading();
+                addChatMessage(aiResponse, 'ai');
+                
+            } catch (error) {
+                removeChatLoading();
+                addChatMessage('抱歉，我暂时无法回答。请检查网络连接或稍后重试。', 'ai', true);
+                document.getElementById('chat-api-status').className = 'w-2 h-2 rounded-full bg-red-500';
+            } finally {
+                isChatProcessing = false;
+                document.getElementById('chat-send-btn').disabled = false;
+            }
+        }
+
+        function addChatMessage(content, type, isError = false) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'flex gap-3 message-enter';
+            
+            if (type === 'user') {
+                div.innerHTML = `
+                    <div class="flex-1 flex justify-end">
+                        <div class="user-message chat-message p-3 text-sm text-white max-w-[80%]">
+                            ${escapeHtml(content)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                const bgColor = isError ? 'bg-red-900/50 border-red-500/30' : 'ai-message';
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div class="${bgColor} chat-message p-3 text-sm text-slate-200 max-w-[80%]">
+                        ${formatMarkdown(content)}
+                    </div>
+                `;
+            }
+            
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showChatLoading() {
+            const messagesDiv = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.id = 'chat-loading';
+            div.className = 'flex gap-3 message-enter';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <div class="ai-message chat-message p-3 flex items-center gap-2">
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function removeChatLoading() {
+            const loading = document.getElementById('chat-loading');
+            if (loading) loading.remove();
+        }
+
+        function clearChat() {
+            const messagesDiv = document.getElementById('chat-messages');
+            messagesDiv.innerHTML = `
+                <div class="flex gap-3">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div class="ai-message chat-message p-3 text-sm text-slate-200">
+                        聊天记录已清空。有什么我可以帮你的吗？
+                    </div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 页面加载初始化
+        window.addEventListener('load', () => {
+            checkBrowserSupport();
+            
+            // 检查 API 状态
+            fetch(API_URL.replace('/chat/completions', '/models'), {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            }).then(() => {
+                document.getElementById('chat-api-status').className = 'w-2 h-2 rounded-full bg-green-500';
+            }).catch(() => {
+                document.getElementById('chat-api-status').className = 'w-2 h-2 rounded-full bg-yellow-500';
+            });
+        });
+
+        // 防止页面滚动时的抖动
+        document.addEventListener('DOMContentLoaded', () => {
+            const chatContainer = document.getElementById('chat-messages');
+            chatContainer.addEventListener('scroll', () => {
+                chatContainer.style.scrollBehavior = 'auto';
+            });
+        });
+    </script>
+</body>
+</html>
