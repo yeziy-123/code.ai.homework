@@ -552,7 +552,7 @@
 
     <script>
         // 配置
-        const API_KEY = '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';
+        const API_KEY = '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';
         const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
         
         let currentMode = null;
@@ -758,7 +758,7 @@
                 cameraView.classList.remove('scanning');
                 
                 // 转换为图片数据
-                currentImageData = canvas.toDataURL('image/jpeg', 0.9);
+                currentImageData = canvas.toDataURL('image/jpg', 0.9);
                 
                 // 关闭相机并显示结果
                 closeCamera();
